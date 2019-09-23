@@ -54,6 +54,8 @@ const (
 type Driver struct {
 	*drivers.BaseDriver
 	*pkgdrivers.CommonDriver
+	BootInitrd 	   string
+	BootKernel 	   string
 	Boot2DockerURL string
 	DiskSize       int
 	CPU            int
@@ -206,8 +208,8 @@ func (d *Driver) createHost() (*hyperkit.HyperKit, error) {
 	}
 
 	// TODO: handle the rest of our settings.
-	h.Kernel = d.ResolveStorePath("bzimage")
-	h.Initrd = d.ResolveStorePath("initrd")
+	h.Kernel = d.BootKernel
+	h.Initrd = d.BootInitrd
 	h.VMNet = true
 	h.ISOImages = []string{d.ResolveStorePath(isoFilename)}
 	h.Console = hyperkit.ConsoleFile
@@ -415,19 +417,25 @@ func (d *Driver) Stop() error {
 }
 
 func (d *Driver) extractKernel(isoPath string) error {
-	for _, f := range []struct {
-		pathInIso string
-		destPath  string
-	}{
-		{"/boot/bzimage", "bzimage"},
-		{"/boot/initrd", "initrd"},
-		{"/isolinux/isolinux.cfg", "isolinux.cfg"},
-	} {
-		fullDestPath := d.ResolveStorePath(f.destPath)
-		if err := ExtractFile(isoPath, f.pathInIso, fullDestPath); err != nil {
-			return err
-		}
+	files, err := ISOExtractBootFiles(isoPath, d.ResolveStorePath(""))
+	if err != nil {
+		return err
 	}
+
+	if files.KernelPath == ""  {
+		return errors.Wrapf(err, "failed to extract kernel boot image from iso")
+	}
+	d.BootKernel = files.KernelPath
+
+	if files.InitrdPath == "" {
+		return errors.Wrapf(err, "failed to extract initial ram disk from iso")
+	}
+	d.BootInitrd = files.InitrdPath
+
+	if files.IsoLinuxCfgPath == "" {
+		return errors.Wrapf(err, "failed to extract isolinux config")
+	}
+
 	return nil
 }
 
