@@ -48,6 +48,9 @@ const (
 	permErr         = "%s needs to run with elevated permissions. " +
 		"Please run the following command, then try again: " +
 		"sudo chown root:wheel %s && sudo chmod u+s %s"
+
+	defaultCPUs     = 1
+	defaultMemory   = 1024
 )
 
 // Driver is the machine driver for Hyperkit
@@ -213,8 +216,12 @@ func (d *Driver) createHost() (*hyperkit.HyperKit, error) {
 	h.VMNet = true
 	h.ISOImages = []string{d.ResolveStorePath(isoFilename)}
 	h.Console = hyperkit.ConsoleFile
-	h.CPUs = d.CPU
-	h.Memory = d.Memory
+	if d.CPU > defaultCPUs {
+		h.CPUs = d.CPU
+	}
+	if d.Memory > defaultMemory {
+		h.Memory = d.Memory
+	}
 	h.UUID = d.UUID
 
 	if vsockPorts, err := d.extractVSockPorts(); err != nil {
