@@ -34,6 +34,7 @@ import (
 	"github.com/docker/machine/libmachine/drivers"
 	"github.com/docker/machine/libmachine/log"
 	"github.com/docker/machine/libmachine/state"
+	"github.com/google/uuid"
 	"github.com/johanneswuerbach/nfsexports"
 	ps "github.com/mitchellh/go-ps"
 	hyperkit "github.com/moby/hyperkit/go"
@@ -72,9 +73,10 @@ type Driver struct {
 }
 
 // NewDriver creates a new driver for a host
-func NewDriver(hostName, storePath string) *Driver {
+func NewDriver(machineName, storePath string) *Driver {
 	return &Driver{
 		BaseDriver: &drivers.BaseDriver{
+			MachineName: machineName,
 			SSHUser: "docker",
 		},
 		CommonDriver: &pkgdrivers.CommonDriver{},
@@ -223,6 +225,9 @@ func (d *Driver) createHost() (*hyperkit.HyperKit, error) {
 		h.Memory = d.Memory
 	}
 	h.UUID = d.UUID
+	if h.UUID == "" {
+		h.UUID = uuid.NewSHA1( uuid.Nil, []byte(d.GetMachineName())).String()
+	}
 
 	if vsockPorts, err := d.extractVSockPorts(); err != nil {
 		return nil, err
