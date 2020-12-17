@@ -18,6 +18,7 @@ package cluster
 
 import (
 	"fmt"
+	"k8s.io/minikube/pkg/minikube/bootstrapper/k3s"
 
 	"github.com/docker/machine/libmachine"
 	"github.com/docker/machine/libmachine/ssh"
@@ -47,6 +48,11 @@ func Bootstrapper(api libmachine.API, cc config.ClusterConfig, r command.Runner)
 		b, err = kubeadm.NewBootstrapper(api, cc, r)
 		if err != nil {
 			return nil, errors.Wrap(err, "getting a new kubeadm bootstrapper")
+		}
+	case bootstrapper.K3s:
+		b, err = k3s.NewBootstrapper(api, cc, r)
+		if err != nil {
+			return nil, errors.Wrap(err, "getting a new k3s bootstrapper")
 		}
 	default:
 		return nil, fmt.Errorf("unknown bootstrapper: %s", cc.Bootstrapper)
