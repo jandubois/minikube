@@ -71,7 +71,9 @@ func WaitForAPIServerProcess(r cruntime.Manager, bs bootstrapper.Bootstrapper, c
 
 // APIServerPID returns our best guess to the apiserver pid
 func APIServerPID(cr command.Runner) (int, error) {
-	rr, err := cr.RunCmd(exec.Command("sudo", "pgrep", "-xnf", "kube-apiserver.*minikube.*"))
+	// XXX hardcoded k3s change XXX
+	// rr, err := cr.RunCmd(exec.Command("sudo", "pgrep", "-xnf", "kube-apiserver.*minikube.*"))
+	rr, err := cr.RunCmd(exec.Command("sudo", "pgrep", "-xnf", ".*k3s server.*"))
 	if err != nil {
 		return 0, err
 	}
