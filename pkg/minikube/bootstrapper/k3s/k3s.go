@@ -122,23 +122,47 @@ func (k *Bootstrapper) LogCommands(cfg config.ClusterConfig, o bootstrapper.LogO
 }
 
 func (k *Bootstrapper) init(cfg config.ClusterConfig) error {
-	ctx, cancel := context.WithTimeout(context.Background(), initTimeoutMinutes*time.Minute)
-	defer cancel()
-	c := exec.CommandContext(ctx, "sudo", "/usr/local/bin/get.k3s.sh",
-		"--data-dir", "/var/lib/k3s",
-		"--kube-apiserver-arg", "anonymous-auth=true",
-		"--write-kubeconfig", "/var/lib/minikube/kubeconfig",
-		"--https-listen-port", strconv.Itoa(constants.APIServerPort))
-	if _, err := k.c.RunCmd(c); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return ErrInitTimedout
-		}
-
-		if strings.Contains(err.Error(), "'k3s': Permission denied") {
-			return ErrNoExecLinux
-		}
-		return errors.Wrap(err, "run")
+	// XXX rm /usr/share/ca-certificates/minikubeCA.pem
+	minikubeCA := path.Join(vmpath.GuestCertAuthDir, "minikubeCA.pem")
+	if _, err := k.c.RunCmd(exec.Command("sudo", "rm", minikubeCA)); err != nil {
+		return errors.Wrap(err,"remove minikubeCA")
 	}
+
+	// copy /var/lib/minikube/certs/ca.* → /var/lib/k3s/server/tls/server-ca.*
+	targetDir := path.Join(vmpath.GuestK3sDataDir, "server", "tls")
+	if _, err := k.c.RunCmd(exec.Command("sudo", "mkdir", "-p", targetDir)); err != nil {
+		return errors.Wrap(err,"mkdir k3s datadir")
+	}
+
+	for _, ext := range []string{"crt", "key"} {
+		src := path.Join(vmpath.GuestPersistentDir, "certs", "ca."+ext)
+		dest := path.Join(targetDir, "server-ca."+ext)
+		if _, err := k.c.RunCmd(exec.Command("sudo", "cp", src, dest)); err != nil {
+			return errors.Wrap(err,"copy server certs")
+		}
+	}
+
+	if err := sysinit.New(k.c).Restart("k3s"); err != nil {
+		klog.Warningf("Failed to restart k3s: %v", err)
+	}
+
+	//ctx, cancel := context.WithTimeout(context.Background(), initTimeoutMinutes*time.Minute)
+	//defer cancel()
+	//c := exec.CommandContext(ctx, "sudo", "/usr/local/bin/get.k3s.sh",
+	//	"--data-dir", "/var/lib/k3s",
+	//	"--kube-apiserver-arg", "anonymous-auth=true",
+	//	"--write-kubeconfig", "/var/lib/minikube/kubeconfig",
+	//	"--https-listen-port", strconv.Itoa(constants.APIServerPort))
+	//if _, err := k.c.RunCmd(c); err != nil {
+	//	if ctx.Err() == context.DeadlineExceeded {
+	//		return ErrInitTimedout
+	//	}
+	//
+	//	if strings.Contains(err.Error(), "'k3s': Permission denied") {
+	//		return ErrNoExecLinux
+	//	}
+	//	return errors.Wrap(err, "run")
+	//}
 
 	if err := k.applyCNI(cfg); err != nil {
 		return errors.Wrap(err, "apply cni")
@@ -270,11 +294,6 @@ func (k *Bootstrapper) StartCluster(cfg config.ClusterConfig) error {
 			klog.Warningf("delete failed: %v", err)
 		}
 		// Fall-through to init
-	}
-
-	conf := bsutil.KubeadmYamlPath
-	if _, err := k.c.RunCmd(exec.Command("sudo", "cp", conf+".new", conf)); err != nil {
-		return errors.Wrap(err, "cp")
 	}
 
 	err := k.init(cfg)
@@ -583,7 +602,7 @@ func (k *Bootstrapper) JoinCluster(cc config.ClusterConfig, n config.Node, joinC
 	}()
 
 	// Join the master by specifying its token
-	joinCmd = fmt.Sprintf("%s --node-name=%s", joinCmd, driver.MachineName(cc, n))
+	joinCmd = fmt.Sprintf("%s --node-name=%s", joinCmd, config.MachineName(cc, n))
 
 	join := func() error {
 		// reset first to clear any possibly existing state
@@ -753,41 +772,26 @@ func (k *Bootstrapper) UpdateCluster(cfg config.ClusterConfig) error {
 
 // UpdateNode updates a node.
 func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cruntime.Manager) error {
-	kubeadmCfg, err := bsutil.GenerateKubeadmYAML(cfg, n, r)
+	k3sCfg, err := bsutil.NewK3sConfig(cfg, n, r)
 	if err != nil {
-		return errors.Wrap(err, "generating kubeadm cfg")
+		return errors.Wrap(err, "generating k3s config")
 	}
 
-	kubeletCfg, err := bsutil.NewKubeletConfig(cfg, n, r)
-	if err != nil {
-		return errors.Wrap(err, "generating kubelet config")
-	}
-
-	kubeletService, err := bsutil.NewKubeletService(cfg.KubernetesConfig)
-	if err != nil {
-		return errors.Wrap(err, "generating kubelet service")
-	}
-
-	klog.Infof("kubelet %s config:\n%+v", kubeletCfg, cfg.KubernetesConfig)
+	klog.Infof("k3s %s config:\n%+v", k3sCfg, cfg.KubernetesConfig)
 
 	sm := sysinit.New(k.c)
 
-	if err := bsutil.TransferBinaries(cfg.KubernetesConfig, k.c, sm); err != nil {
+	if err := bsutil.TransferBinaries(cfg, k.c, sm); err != nil {
 		return errors.Wrap(err, "downloading binaries")
 	}
 
 	files := []assets.CopyableFile{
-		assets.NewMemoryAssetTarget(kubeletCfg, bsutil.KubeletSystemdConfFile, "0644"),
-		assets.NewMemoryAssetTarget(kubeletService, bsutil.KubeletServiceFile, "0644"),
-	}
-
-	if n.ControlPlane {
-		files = append(files, assets.NewMemoryAssetTarget(kubeadmCfg, bsutil.KubeadmYamlPath+".new", "0640"))
+		assets.NewMemoryAssetTarget(k3sCfg, bsutil.K3sSystemdConfFile, "0644"),
 	}
 
 	// Installs compatibility shims for non-systemd environments
-	kubeletPath := path.Join(vmpath.GuestPersistentDir, "binaries", cfg.KubernetesConfig.KubernetesVersion, "kubelet")
-	shims, err := sm.GenerateInitShim("kubelet", kubeletPath, bsutil.KubeletSystemdConfFile)
+	k3sPath := path.Join(vmpath.GuestPersistentDir, "binaries", cfg.KubernetesConfig.KubernetesVersion, "k3s")
+	shims, err := sm.GenerateInitShim("k3s", k3sPath, bsutil.K3sSystemdConfFile)
 	if err != nil {
 		return errors.Wrap(err, "shim")
 	}
@@ -795,6 +799,12 @@ func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cru
 
 	if err := bsutil.CopyFiles(k.c, files); err != nil {
 		return errors.Wrap(err, "copy")
+	}
+
+	// Create kubectl symlink to k3s
+	c := exec.Command("sudo", "ln", "-s", k3sPath, kubectlPath(cfg))
+	if rr, err := k.c.RunCmd(c); err != nil {
+		return errors.Wrapf(err, "create symlink failed: %s", rr.Command())
 	}
 
 	cp, err := config.PrimaryControlPlane(&cfg)
@@ -811,7 +821,7 @@ func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cru
 
 // kubectlPath returns the path to the kubelet
 func kubectlPath(cfg config.ClusterConfig) string {
-	return "/usr/local/bin/kubectl"
+	return path.Join(vmpath.GuestPersistentDir, "binaries", cfg.KubernetesConfig.KubernetesVersion, "kubectl")
 }
 
 // applyNodeLabels applies minikube labels to all the nodes

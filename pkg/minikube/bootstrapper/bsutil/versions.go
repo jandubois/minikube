@@ -18,7 +18,10 @@ package bsutil
 
 import (
 	"path"
+	"strconv"
 	"strings"
+
+	"k8s.io/minikube/pkg/minikube/constants"
 
 	"github.com/blang/semver"
 	"k8s.io/minikube/pkg/minikube/config"
@@ -39,6 +42,11 @@ func versionIsBetween(version, gte, lte semver.Version) bool {
 }
 
 var versionSpecificOpts = []config.VersionedExtraOption{
+	config.NewUnversionedOption(K3s, "data-dir", "/var/lib/k3s"),
+	config.NewUnversionedOption(K3s, "kube-apiserver-arg", "anonymous-auth=true"),
+	config.NewUnversionedOption(K3s, "write-kubeconfig", "/var/lib/minikube/kubeconfig"),
+	config.NewUnversionedOption(K3s, "https-listen-port", strconv.Itoa(constants.APIServerPort)),
+
 	config.NewUnversionedOption(Kubelet, "bootstrap-kubeconfig", "/etc/kubernetes/bootstrap-kubelet.conf"),
 	config.NewUnversionedOption(Kubelet, "config", "/var/lib/kubelet/config.yaml"),
 	config.NewUnversionedOption(Kubelet, "kubeconfig", "/etc/kubernetes/kubelet.conf"),

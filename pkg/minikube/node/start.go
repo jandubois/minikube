@@ -220,7 +220,8 @@ func Provision(cc *config.ClusterConfig, n *config.Node, apiServer bool, delOnFa
 		beginDownloadKicBaseImage(&kicGroup, cc, viper.GetBool("download-only"))
 	}
 
-	if !driver.BareMetal(cc.Driver) {
+	// XXX temporarily disable caching images
+	if !driver.BareMetal(cc.Driver) && cc.Bootstrapper != bootstrapper.K3s {
 		beginCacheKubernetesImages(&cacheGroup, cc.KubernetesConfig.ImageRepository, n.KubernetesVersion, cc.KubernetesConfig.ContainerRuntime, cc.Bootstrapper)
 	}
 

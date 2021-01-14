@@ -57,6 +57,9 @@ const (
 
 // GetCachedBinaryList returns the list of binaries
 func GetCachedBinaryList(bootstrapper string) []string {
+	if bootstrapper == K3s {
+		return constants.K3sReleaseBinaries
+	}
 	return constants.KubernetesReleaseBinaries
 }
 
