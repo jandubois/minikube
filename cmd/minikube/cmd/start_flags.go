@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"fmt"
+	cmdcfg "k8s.io/minikube/cmd/minikube/cmd/config"
 	"strings"
 	"time"
 
@@ -335,6 +336,7 @@ func generateClusterConfig(cmd *cobra.Command, existing *config.ClusterConfig, k
 			NatNicType:              viper.GetString(natNicType),
 			StartHostTimeout:        viper.GetDuration(waitTimeout),
 			ExposedPorts:            viper.GetStringSlice(ports),
+			Bootstrapper:            viper.GetString(cmdcfg.Bootstrapper),
 			KubernetesConfig: config.KubernetesConfig{
 				KubernetesVersion:      k8sVersion,
 				ClusterName:            ClusterFlagValue(),

@@ -26,7 +26,6 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/klog/v2"
-	cmdcfg "k8s.io/minikube/cmd/minikube/cmd/config"
 	"k8s.io/minikube/pkg/drivers/kic"
 	"k8s.io/minikube/pkg/minikube/config"
 	"k8s.io/minikube/pkg/minikube/constants"
@@ -48,7 +47,7 @@ const (
 )
 
 // BeginCacheKubernetesImages caches images required for Kubernetes version in the background
-func beginCacheKubernetesImages(g *errgroup.Group, imageRepository string, k8sVersion string, cRuntime string) {
+func beginCacheKubernetesImages(g *errgroup.Group, imageRepository string, k8sVersion string, cRuntime string, bootstrapper string) {
 	// TODO: remove imageRepository check once #7695 is fixed
 	if imageRepository == "" && download.PreloadExists(k8sVersion, cRuntime) {
 		klog.Info("Caching tarball of preloaded images")
@@ -65,17 +64,17 @@ func beginCacheKubernetesImages(g *errgroup.Group, imageRepository string, k8sVe
 	}
 
 	g.Go(func() error {
-		return machine.CacheImagesForBootstrapper(imageRepository, k8sVersion, viper.GetString(cmdcfg.Bootstrapper))
+		return machine.CacheImagesForBootstrapper(imageRepository, k8sVersion, bootstrapper)
 	})
 }
 
 // HandleDownloadOnly caches appropariate binaries and images
-func handleDownloadOnly(cacheGroup, kicGroup *errgroup.Group, k8sVersion string) {
+func handleDownloadOnly(cacheGroup, kicGroup *errgroup.Group, k8sVersion string, bootstrapper string) {
 	// If --download-only, complete the remaining downloads and exit.
 	if !viper.GetBool("download-only") {
 		return
 	}
-	if err := doCacheBinaries(k8sVersion); err != nil {
+	if err := doCacheBinaries(k8sVersion, bootstrapper); err != nil {
 		exit.Error(reason.InetCacheBinaries, "Failed to cache binaries", err)
 	}
 	if _, err := CacheKubectlBinary(k8sVersion); err != nil {
@@ -101,8 +100,8 @@ func CacheKubectlBinary(k8sVersion string) (string, error) {
 }
 
 // doCacheBinaries caches Kubernetes binaries in the foreground
-func doCacheBinaries(k8sVersion string) error {
-	return machine.CacheBinariesForBootstrapper(k8sVersion, viper.GetString(cmdcfg.Bootstrapper))
+func doCacheBinaries(k8sVersion string, bootstrapper string) error {
+	return machine.CacheBinariesForBootstrapper(k8sVersion, bootstrapper)
 }
 
 // beginDownloadKicBaseImage downloads the kic image

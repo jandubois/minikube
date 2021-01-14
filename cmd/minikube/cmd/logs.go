@@ -20,8 +20,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	cmdcfg "k8s.io/minikube/cmd/minikube/cmd/config"
+	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/cluster"
 	"k8s.io/minikube/pkg/minikube/cruntime"
 	"k8s.io/minikube/pkg/minikube/exit"
@@ -53,8 +52,11 @@ var logsCmd = &cobra.Command{
 	Long:  `Gets the logs of the running instance, used for debugging minikube, not user code.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		co := mustload.Running(ClusterFlagValue())
+		if co.Config.Bootstrapper == "" {
+			co.Config.Bootstrapper = bootstrapper.Kubeadm
+		}
 
-		bs, err := cluster.Bootstrapper(co.API, viper.GetString(cmdcfg.Bootstrapper), *co.Config, co.CP.Runner)
+		bs, err := cluster.Bootstrapper(co.API, *co.Config, co.CP.Runner)
 		if err != nil {
 			exit.Error(reason.InternalBootstrapper, "Error getting cluster bootstrapper", err)
 		}

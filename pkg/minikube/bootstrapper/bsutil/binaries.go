@@ -28,9 +28,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"k8s.io/klog/v2"
+	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/command"
 	"k8s.io/minikube/pkg/minikube/config"
-	"k8s.io/minikube/pkg/minikube/constants"
 	"k8s.io/minikube/pkg/minikube/download"
 	"k8s.io/minikube/pkg/minikube/machine"
 	"k8s.io/minikube/pkg/minikube/sysinit"
@@ -38,7 +38,7 @@ import (
 )
 
 // TransferBinaries transfers all required Kubernetes binaries
-func TransferBinaries(cfg config.KubernetesConfig, c command.Runner, sm sysinit.Manager) error {
+func TransferBinaries(cfg config.ClusterConfig, c command.Runner, sm sysinit.Manager) error {
 	ok, err := binariesExist(cfg, c)
 	if err == nil && ok {
 		klog.Info("Found k8s binaries, skipping transfer")
@@ -46,17 +46,17 @@ func TransferBinaries(cfg config.KubernetesConfig, c command.Runner, sm sysinit.
 	}
 	klog.Infof("Didn't find k8s binaries: %v\nInitiating transfer...", err)
 
-	dir := binRoot(cfg.KubernetesVersion)
+	dir := binRoot(cfg.KubernetesConfig.KubernetesVersion)
 	_, err = c.RunCmd(exec.Command("sudo", "mkdir", "-p", dir))
 	if err != nil {
 		return err
 	}
 
 	var g errgroup.Group
-	for _, name := range constants.KubernetesReleaseBinaries {
+	for _, name := range bootstrapper.GetCachedBinaryList(cfg.Bootstrapper) {
 		name := name
 		g.Go(func() error {
-			src, err := download.Binary(name, cfg.KubernetesVersion, "linux", runtime.GOARCH)
+			src, err := download.Binary(name, cfg.KubernetesConfig.KubernetesVersion, "linux", runtime.GOARCH)
 			if err != nil {
 				return errors.Wrapf(err, "downloading %s", name)
 			}
@@ -78,8 +78,8 @@ func TransferBinaries(cfg config.KubernetesConfig, c command.Runner, sm sysinit.
 }
 
 // binariesExist returns true if the binaries already exist
-func binariesExist(cfg config.KubernetesConfig, c command.Runner) (bool, error) {
-	dir := binRoot(cfg.KubernetesVersion)
+func binariesExist(cfg config.ClusterConfig, c command.Runner) (bool, error) {
+	dir := binRoot(cfg.KubernetesConfig.KubernetesVersion)
 	rr, err := c.RunCmd(exec.Command("sudo", "ls", dir))
 	stdout := rr.Stdout.String()
 	if err != nil {
@@ -89,7 +89,7 @@ func binariesExist(cfg config.KubernetesConfig, c command.Runner) (bool, error) 
 	for _, binary := range strings.Split(stdout, "\n") {
 		foundBinaries[binary] = struct{}{}
 	}
-	for _, name := range constants.KubernetesReleaseBinaries {
+	for _, name := range bootstrapper.GetCachedBinaryList(cfg.Bootstrapper) {
 		if _, ok := foundBinaries[name]; !ok {
 			return false, fmt.Errorf("didn't find preexisting %s", name)
 		}
