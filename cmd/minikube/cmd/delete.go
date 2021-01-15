@@ -34,6 +34,7 @@ import (
 	"k8s.io/klog/v2"
 	cmdcfg "k8s.io/minikube/cmd/minikube/cmd/config"
 	"k8s.io/minikube/pkg/drivers/kic/oci"
+	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/cluster"
 	"k8s.io/minikube/pkg/minikube/config"
 	"k8s.io/minikube/pkg/minikube/constants"
@@ -308,9 +309,12 @@ func deleteProfile(profile *config.Profile) error {
 		delErr := profileDeletionErr(profile.Name, fmt.Sprintf("error loading profile config: %v", err))
 		return DeletionError{Err: delErr, Errtype: MissingProfile}
 	}
+	if cc.Bootstrapper == "" {
+		cc.Bootstrapper = bootstrapper.Kubeadm
+	}
 
 	if err == nil && (driver.BareMetal(cc.Driver) || driver.IsSSH(cc.Driver)) {
-		if err := uninstallKubernetes(api, *cc, cc.Nodes[0], viper.GetString(cmdcfg.Bootstrapper)); err != nil {
+		if err := uninstallKubernetes(api, *cc, cc.Nodes[0]); err != nil {
 			deletionError, ok := err.(DeletionError)
 			if ok {
 				delErr := profileDeletionErr(profile.Name, fmt.Sprintf("%v", err))
@@ -410,8 +414,8 @@ func profileDeletionErr(cname string, additionalInfo string) error {
 	return fmt.Errorf("error deleting profile \"%s\": %s", cname, additionalInfo)
 }
 
-func uninstallKubernetes(api libmachine.API, cc config.ClusterConfig, n config.Node, bsName string) error {
-	out.Step(style.Resetting, "Uninstalling Kubernetes {{.kubernetes_version}} using {{.bootstrapper_name}} ...", out.V{"kubernetes_version": cc.KubernetesConfig.KubernetesVersion, "bootstrapper_name": bsName})
+func uninstallKubernetes(api libmachine.API, cc config.ClusterConfig, n config.Node) error {
+	out.Step(style.Resetting, "Uninstalling Kubernetes {{.kubernetes_version}} using {{.bootstrapper_name}} ...", out.V{"kubernetes_version": cc.KubernetesConfig.KubernetesVersion, "bootstrapper_name": cc.Bootstrapper})
 	host, err := machine.LoadHost(api, config.MachineName(cc, n))
 	if err != nil {
 		return DeletionError{Err: fmt.Errorf("unable to load host: %v", err), Errtype: MissingCluster}
@@ -422,7 +426,7 @@ func uninstallKubernetes(api libmachine.API, cc config.ClusterConfig, n config.N
 		return DeletionError{Err: fmt.Errorf("unable to get command runner %v", err), Errtype: MissingCluster}
 	}
 
-	clusterBootstrapper, err := cluster.Bootstrapper(api, bsName, cc, r)
+	clusterBootstrapper, err := cluster.Bootstrapper(api, cc, r)
 	if err != nil {
 		return DeletionError{Err: fmt.Errorf("unable to get bootstrapper: %v", err), Errtype: Fatal}
 	}

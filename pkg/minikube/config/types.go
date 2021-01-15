@@ -79,6 +79,7 @@ type ClusterConfig struct {
 	ExposedPorts            []string // Only used by the docker and podman driver
 	Network                 string   // only used by docker driver
 	MultiNodeRequested      bool
+	Bootstrapper            string
 }
 
 // KubernetesConfig contains the parameters used to configure the VM Kubernetes.

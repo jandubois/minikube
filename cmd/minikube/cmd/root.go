@@ -33,6 +33,7 @@ import (
 	configCmd "k8s.io/minikube/cmd/minikube/cmd/config"
 	"k8s.io/minikube/pkg/drivers/kic/oci"
 	"k8s.io/minikube/pkg/minikube/audit"
+	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/config"
 	"k8s.io/minikube/pkg/minikube/constants"
 	"k8s.io/minikube/pkg/minikube/exit"
@@ -179,7 +180,7 @@ func init() {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine) // avoid `generate-docs_test.go` complaining about "Docs are not updated"
 
 	RootCmd.PersistentFlags().StringP(config.ProfileName, "p", constants.DefaultClusterName, `The name of the minikube VM being used. This can be set to allow having multiple instances of minikube independently.`)
-	RootCmd.PersistentFlags().StringP(configCmd.Bootstrapper, "b", "kubeadm", "The name of the cluster bootstrapper that will set up the Kubernetes cluster.")
+	RootCmd.PersistentFlags().StringP(configCmd.Bootstrapper, "b", bootstrapper.Kubeadm, "The name of the cluster bootstrapper that will set up the Kubernetes cluster.")
 	RootCmd.PersistentFlags().String(config.UserFlag, "", "Specifies the user executing the operation. Useful for auditing operations executed by 3rd party tools. Defaults to the operating system username.")
 
 	groups := templates.CommandGroups{

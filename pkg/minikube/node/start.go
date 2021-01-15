@@ -33,7 +33,6 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/klog/v2"
-	cmdcfg "k8s.io/minikube/cmd/minikube/cmd/config"
 	"k8s.io/minikube/pkg/addons"
 	"k8s.io/minikube/pkg/drivers/kic/oci"
 	"k8s.io/minikube/pkg/kapi"
@@ -124,7 +123,7 @@ func Start(starter Starter, apiServer bool) (*kubeconfig.Settings, error) {
 			return nil, errors.Wrap(err, "Failed kubeconfig update")
 		}
 	} else {
-		bs, err = cluster.Bootstrapper(starter.MachineAPI, viper.GetString(cmdcfg.Bootstrapper), *starter.Cfg, starter.Runner)
+		bs, err = cluster.Bootstrapper(starter.MachineAPI, *starter.Cfg, starter.Runner)
 		if err != nil {
 			return nil, errors.Wrap(err, "Failed to get bootstrapper")
 		}
@@ -171,7 +170,7 @@ func Start(starter Starter, apiServer bool) (*kubeconfig.Settings, error) {
 		}
 	} else {
 		// Make sure to use the command runner for the control plane to generate the join token
-		cpBs, cpr, err := cluster.ControlPlaneBootstrapper(starter.MachineAPI, starter.Cfg, viper.GetString(cmdcfg.Bootstrapper))
+		cpBs, cpr, err := cluster.ControlPlaneBootstrapper(starter.MachineAPI, starter.Cfg)
 		if err != nil {
 			return nil, errors.Wrap(err, "getting control plane bootstrapper")
 		}
@@ -222,7 +221,7 @@ func Provision(cc *config.ClusterConfig, n *config.Node, apiServer bool, delOnFa
 	}
 
 	if !driver.BareMetal(cc.Driver) {
-		beginCacheKubernetesImages(&cacheGroup, cc.KubernetesConfig.ImageRepository, n.KubernetesVersion, cc.KubernetesConfig.ContainerRuntime)
+		beginCacheKubernetesImages(&cacheGroup, cc.KubernetesConfig.ImageRepository, n.KubernetesVersion, cc.KubernetesConfig.ContainerRuntime, cc.Bootstrapper)
 	}
 
 	// Abstraction leakage alert: startHost requires the config to be saved, to satistfy pkg/provision/buildroot.
@@ -231,7 +230,7 @@ func Provision(cc *config.ClusterConfig, n *config.Node, apiServer bool, delOnFa
 		return nil, false, nil, nil, errors.Wrap(err, "Failed to save config")
 	}
 
-	handleDownloadOnly(&cacheGroup, &kicGroup, n.KubernetesVersion)
+	handleDownloadOnly(&cacheGroup, &kicGroup, n.KubernetesVersion, cc.Bootstrapper)
 	waitDownloadKicBaseImage(&kicGroup)
 
 	return startMachine(cc, n, delOnFail)
@@ -266,7 +265,7 @@ func configureRuntimes(runner cruntime.CommandRunner, cc config.ClusterConfig, k
 				klog.Warningf("%s preload failed: %v, falling back to caching images", cr.Name(), err)
 			}
 
-			if err := machine.CacheImagesForBootstrapper(cc.KubernetesConfig.ImageRepository, cc.KubernetesConfig.KubernetesVersion, viper.GetString(cmdcfg.Bootstrapper)); err != nil {
+			if err := machine.CacheImagesForBootstrapper(cc.KubernetesConfig.ImageRepository, cc.KubernetesConfig.KubernetesVersion, cc.Bootstrapper); err != nil {
 				exit.Error(reason.RuntimeCache, "Failed to cache images", err)
 			}
 		}
@@ -286,7 +285,7 @@ func forceSystemd() bool {
 
 // setupKubeAdm adds any requested files into the VM before Kubernetes is started
 func setupKubeAdm(mAPI libmachine.API, cfg config.ClusterConfig, n config.Node, r command.Runner) bootstrapper.Bootstrapper {
-	bs, err := cluster.Bootstrapper(mAPI, viper.GetString(cmdcfg.Bootstrapper), cfg, r)
+	bs, err := cluster.Bootstrapper(mAPI, cfg, r)
 	if err != nil {
 		exit.Error(reason.InternalBootstrapper, "Failed to get bootstrapper", err)
 	}
