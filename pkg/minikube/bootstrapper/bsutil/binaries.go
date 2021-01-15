@@ -28,9 +28,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"k8s.io/klog/v2"
+	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/command"
 	"k8s.io/minikube/pkg/minikube/config"
-	"k8s.io/minikube/pkg/minikube/constants"
 	"k8s.io/minikube/pkg/minikube/download"
 	"k8s.io/minikube/pkg/minikube/machine"
 	"k8s.io/minikube/pkg/minikube/sysinit"
@@ -38,8 +38,8 @@ import (
 )
 
 // TransferBinaries transfers all required Kubernetes binaries
-func TransferBinaries(cfg config.KubernetesConfig, c command.Runner, sm sysinit.Manager) error {
-	ok, err := binariesExist(cfg, c)
+func TransferBinaries(cfg config.KubernetesConfig, bsName string, c command.Runner, sm sysinit.Manager) error {
+	ok, err := binariesExist(cfg, bsName, c)
 	if err == nil && ok {
 		klog.Info("Found k8s binaries, skipping transfer")
 		return nil
@@ -53,7 +53,7 @@ func TransferBinaries(cfg config.KubernetesConfig, c command.Runner, sm sysinit.
 	}
 
 	var g errgroup.Group
-	for _, name := range constants.KubernetesReleaseBinaries {
+	for _, name := range bootstrapper.GetCachedBinaryList(bsName) {
 		name := name
 		g.Go(func() error {
 			src, err := download.Binary(name, cfg.KubernetesVersion, "linux", runtime.GOARCH)
@@ -78,7 +78,7 @@ func TransferBinaries(cfg config.KubernetesConfig, c command.Runner, sm sysinit.
 }
 
 // binariesExist returns true if the binaries already exist
-func binariesExist(cfg config.KubernetesConfig, c command.Runner) (bool, error) {
+func binariesExist(cfg config.KubernetesConfig, bsName string, c command.Runner) (bool, error) {
 	dir := binRoot(cfg.KubernetesVersion)
 	rr, err := c.RunCmd(exec.Command("sudo", "ls", dir))
 	stdout := rr.Stdout.String()
@@ -89,7 +89,7 @@ func binariesExist(cfg config.KubernetesConfig, c command.Runner) (bool, error) 
 	for _, binary := range strings.Split(stdout, "\n") {
 		foundBinaries[binary] = struct{}{}
 	}
-	for _, name := range constants.KubernetesReleaseBinaries {
+	for _, name := range bootstrapper.GetCachedBinaryList(bsName) {
 		if _, ok := foundBinaries[name]; !ok {
 			return false, fmt.Errorf("didn't find preexisting %s", name)
 		}

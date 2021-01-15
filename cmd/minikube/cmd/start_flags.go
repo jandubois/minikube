@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"k8s.io/klog/v2"
+	cmdcfg "k8s.io/minikube/cmd/minikube/cmd/config"
 	"k8s.io/minikube/pkg/drivers/kic"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil/kverify"
@@ -335,6 +336,7 @@ func generateClusterConfig(cmd *cobra.Command, existing *config.ClusterConfig, k
 			NatNicType:              viper.GetString(natNicType),
 			StartHostTimeout:        viper.GetDuration(waitTimeout),
 			ExposedPorts:            viper.GetStringSlice(ports),
+			Bootstrapper:            viper.GetString(cmdcfg.Bootstrapper),
 			KubernetesConfig: config.KubernetesConfig{
 				KubernetesVersion:      k8sVersion,
 				ClusterName:            ClusterFlagValue(),
