@@ -49,6 +49,11 @@ func Bootstrapper(api libmachine.API, cc config.ClusterConfig, r command.Runner)
 		if err != nil {
 			return nil, errors.Wrap(err, "getting a new kubeadm bootstrapper")
 		}
+	case bootstrapper.K3s:
+		b, err = k3s.NewBootstrapper(api, cc, r)
+		if err != nil {
+			return nil, errors.Wrap(err, "getting a new k3s bootstrapper")
+		}
 	default:
 		return nil, fmt.Errorf("unknown bootstrapper: %s", cc.Bootstrapper)
 	}
