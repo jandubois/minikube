@@ -17,18 +17,23 @@ limitations under the License.
 package k3s
 
 import (
+	"os/exec"
+	"path"
 	"time"
-
-	// WARNING: Do not use path/filepath in this package unless you want bizarre Windows paths
 
 	"github.com/docker/machine/libmachine"
 	"github.com/docker/machine/libmachine/state"
+	"github.com/pkg/errors"
+
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/minikube/pkg/minikube/bootstrapper"
+	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil/kverify"
 	"k8s.io/minikube/pkg/minikube/command"
 	"k8s.io/minikube/pkg/minikube/config"
 	"k8s.io/minikube/pkg/minikube/cruntime"
+	"k8s.io/minikube/pkg/minikube/sysinit"
+	"k8s.io/minikube/pkg/minikube/vmpath"
 )
 
 // Bootstrapper is a bootstrapper using k3s
@@ -89,10 +94,38 @@ func (k *Bootstrapper) SetupCerts(k8s config.KubernetesConfig, n config.Node) er
 
 // UpdateCluster updates the control plane with cluster-level info.
 func (k *Bootstrapper) UpdateCluster(cfg config.ClusterConfig) error {
+	cp, err := config.PrimaryControlPlane(&cfg)
+	if err != nil {
+		return errors.Wrap(err, "getting control plane")
+	}
+
+	err = k.UpdateNode(cfg, cp, nil)
+	if err != nil {
+		return errors.Wrap(err, "updating control plane")
+	}
+
 	return nil
 }
 
 // UpdateNode updates a node.
 func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cruntime.Manager) error {
+	sm := sysinit.New(k.c)
+
+	if err := bsutil.TransferBinaries(cfg.KubernetesConfig, cfg.Bootstrapper, k.c, sm); err != nil {
+		return errors.Wrap(err, "downloading binaries")
+	}
+
+	// Create kubectl symlink to k3s
+	k3sPath := path.Join(vmpath.GuestPersistentDir, "binaries", cfg.KubernetesConfig.KubernetesVersion, "k3s")
+	c := exec.Command("sudo", "ln", "-s", k3sPath, kubectlPath(cfg))
+	if rr, err := k.c.RunCmd(c); err != nil {
+		return errors.Wrapf(err, "create symlink failed: %s", rr.Command())
+	}
+
 	return nil
+}
+
+// kubectlPath returns the path to the kubectl command
+func kubectlPath(cfg config.ClusterConfig) string {
+	return path.Join(vmpath.GuestPersistentDir, "binaries", cfg.KubernetesConfig.KubernetesVersion, "kubectl")
 }
