@@ -33,4 +33,6 @@ const (
 	GuestCertStoreDir = "/etc/ssl/certs"
 	// GuestGvisorDir is where gvisor bootstraps from
 	GuestGvisorDir = "/tmp/gvisor"
+	// GuestK3sDataDir is where k3s stores all its data
+	GuestK3sDataDir = "/var/lib/k3s"
 )

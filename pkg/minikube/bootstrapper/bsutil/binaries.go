@@ -52,6 +52,10 @@ func TransferBinaries(cfg config.KubernetesConfig, bsName string, c command.Runn
 		return err
 	}
 
+	kubelet := "kubelet"
+	if bsName == K3s {
+		kubelet = "k3s"
+	}
 	var g errgroup.Group
 	for _, name := range bootstrapper.GetCachedBinaryList(bsName) {
 		name := name
@@ -61,7 +65,7 @@ func TransferBinaries(cfg config.KubernetesConfig, bsName string, c command.Runn
 				return errors.Wrapf(err, "downloading %s", name)
 			}
 
-			if name == "kubelet" && sm.Active(name) {
+			if name == kubelet && sm.Active(name) {
 				if err := sm.ForceStop(name); err != nil {
 					klog.Errorf("unable to stop kubelet: %v", err)
 				}
