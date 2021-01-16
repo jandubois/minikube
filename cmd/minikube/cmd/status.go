@@ -34,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
+	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil/kverify"
 	"k8s.io/minikube/pkg/minikube/cluster"
 	"k8s.io/minikube/pkg/minikube/config"
@@ -368,7 +369,7 @@ func nodeStatus(api libmachine.API, cc config.ClusterConfig, n config.Node) (*St
 		st.Host = codeNames[InsufficientStorage]
 	}
 
-	stk := kverify.ServiceStatus(cr, "kubelet")
+	stk := kverify.ServiceStatus(cr, bsutil.KubeletServiceName(cc.Bootstrapper))
 	st.Kubelet = stk.String()
 	if cc.ScheduledStop != nil {
 		initiationTime := time.Unix(cc.ScheduledStop.InitiationTime, 0)

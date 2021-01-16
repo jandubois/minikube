@@ -26,6 +26,8 @@ import (
 	"github.com/pkg/errors"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2"
+	"k8s.io/minikube/pkg/minikube/assets"
 	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil/kverify"
@@ -64,6 +66,15 @@ func (k *Bootstrapper) LogCommands(cfg config.ClusterConfig, o bootstrapper.LogO
 
 // StartCluster starts the cluster
 func (k *Bootstrapper) StartCluster(cfg config.ClusterConfig) error {
+	start := time.Now()
+	klog.Infof("StartCluster: %+v", cfg)
+	defer func() {
+		klog.Infof("StartCluster complete in %s", time.Since(start))
+	}()
+
+	if err := sysinit.New(k.c).Restart("k3s"); err != nil {
+		klog.Warningf("Failed to restart k3s: %v", err)
+	}
 	return nil
 }
 
@@ -120,6 +131,28 @@ func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cru
 	c := exec.Command("sudo", "ln", "-s", k3sPath, kubectlPath(cfg))
 	if rr, err := k.c.RunCmd(c); err != nil {
 		return errors.Wrapf(err, "create symlink failed: %s", rr.Command())
+	}
+
+	k3sCfg, err := bsutil.NewK3sConfig(cfg, n)
+	if err != nil {
+		return errors.Wrap(err, "generating k3s config")
+	}
+
+	klog.Infof("k3s %s config:\n%+v", k3sCfg, cfg.KubernetesConfig)
+
+	files := []assets.CopyableFile{
+		assets.NewMemoryAssetTarget(k3sCfg, bsutil.K3sSystemdConfFile, "0644"),
+	}
+
+	// Installs compatibility shims for non-systemd environments
+	shims, err := sm.GenerateInitShim("k3s", k3sPath, bsutil.K3sSystemdConfFile)
+	if err != nil {
+		return errors.Wrap(err, "shim")
+	}
+	files = append(files, shims...)
+
+	if err := bsutil.CopyFiles(k.c, files); err != nil {
+		return errors.Wrap(err, "copy")
 	}
 
 	return nil
