@@ -43,6 +43,7 @@ import (
 	"k8s.io/klog/v2"
 	cmdcfg "k8s.io/minikube/cmd/minikube/cmd/config"
 	"k8s.io/minikube/pkg/drivers/kic/oci"
+	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/images"
 	"k8s.io/minikube/pkg/minikube/config"
@@ -1234,7 +1235,12 @@ func autoSetDriverOptions(cmd *cobra.Command, drvName string) (err error) {
 	if !cmd.Flags().Changed(cmdcfg.Bootstrapper) && hints.Bootstrapper != "" {
 		viper.Set(cmdcfg.Bootstrapper, hints.Bootstrapper)
 		klog.Infof("auto set %s to %q.", cmdcfg.Bootstrapper, hints.Bootstrapper)
+	}
 
+	// TODO(jandubois): This should probably be hidden behind the bootstrapper abstraction.
+	if viper.GetString(cmdcfg.Bootstrapper) == bootstrapper.K3s {
+		viper.Set(cacheImages, false)
+		klog.Infof("auto set %s to false because the %s bootstrapper handles it internally.", cacheImages, bootstrapper.K3s)
 	}
 
 	return err

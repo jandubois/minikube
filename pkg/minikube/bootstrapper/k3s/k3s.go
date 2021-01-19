@@ -190,8 +190,20 @@ func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cru
 	}
 
 	// Create kubectl symlink to k3s
-	k3sPath := path.Join(vmpath.GuestPersistentDir, "binaries", cfg.KubernetesConfig.KubernetesVersion, "k3s")
+	binPath := path.Join(vmpath.GuestPersistentDir, "binaries", cfg.KubernetesConfig.KubernetesVersion)
+	k3sPath := path.Join(binPath, "k3s")
 	c := exec.Command("sudo", "ln", "-s", k3sPath, kubectlPath(cfg))
+	if rr, err := k.c.RunCmd(c); err != nil {
+		return errors.Wrapf(err, "create symlink failed: %s", rr.Command())
+	}
+
+	// Create symlink for tarball of preload images
+	if _, err := k.c.RunCmd(exec.Command("sudo", "mkdir", "-p", vmpath.GuestK3sImagesDir)); err != nil {
+		return errors.Wrap(err, "mkdir k3s images dir")
+	}
+
+	preloadPath := path.Join(vmpath.GuestK3sImagesDir, "preload.tar")
+	c = exec.Command("sudo", "ln", "-s", path.Join(binPath, "k3s-airgap-images"), preloadPath)
 	if rr, err := k.c.RunCmd(c); err != nil {
 		return errors.Wrapf(err, "create symlink failed: %s", rr.Command())
 	}
