@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 
 	"github.com/blang/semver"
 	"github.com/pkg/errors"
@@ -31,17 +32,22 @@ import (
 
 // binaryWithChecksumURL gets the location of a Kubernetes binary
 func binaryWithChecksumURL(binaryName, version, osName, archName string) (string, error) {
-	if binaryName == "k3s" {
+	if strings.HasPrefix(binaryName, "k3s") {
 		suffix := "-" + archName
-		switch archName {
-		case "amd64":
-			suffix = ""
-		case "arm":
-			suffix = "-armhf"
+		switch binaryName {
+		case "k3s":
+			switch archName {
+			case "amd64":
+				suffix = ""
+			case "arm":
+				suffix = "-armhf"
+			}
+		case "k3s-airgap-images":
+			suffix += ".tar"
 		}
 		// version must be encoded because it contains a '+' char, e.g. "v1.20.0+k3s2"
 		base := fmt.Sprintf("https://github.com/k3s-io/k3s/releases/download/%s", url.QueryEscape(version))
-		return fmt.Sprintf("%s/k3s%s?checksum=file:%s/sha256sum-%s.txt", base, suffix, base, archName), nil
+		return fmt.Sprintf("%s/%s?checksum=file:%s/sha256sum-%s.txt", base, binaryName+suffix, base, archName), nil
 	}
 
 	base := fmt.Sprintf("https://storage.googleapis.com/kubernetes-release/release/%s/bin/%s/%s/%s", version, osName, archName, binaryName)
