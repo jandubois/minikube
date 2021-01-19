@@ -17,8 +17,10 @@ limitations under the License.
 package k3s
 
 import (
+	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/docker/machine/libmachine"
@@ -34,8 +36,10 @@ import (
 	"k8s.io/minikube/pkg/minikube/command"
 	"k8s.io/minikube/pkg/minikube/config"
 	"k8s.io/minikube/pkg/minikube/cruntime"
+	"k8s.io/minikube/pkg/minikube/localpath"
 	"k8s.io/minikube/pkg/minikube/sysinit"
 	"k8s.io/minikube/pkg/minikube/vmpath"
+	"k8s.io/minikube/pkg/util/lock"
 )
 
 // Bootstrapper is a bootstrapper using k3s
@@ -74,6 +78,34 @@ func (k *Bootstrapper) StartCluster(cfg config.ClusterConfig) error {
 
 	if err := sysinit.New(k.c).Restart("k3s"); err != nil {
 		klog.Warningf("Failed to restart k3s: %v", err)
+		// TODO(jandubois): Why don't we return an error (the kubeadm bootstrapper doesn't either)?
+	}
+	// Once "systemctl start k3s" returns with a 0 exit code the apiserver is functional
+	// (but pods will still be starting up).
+
+	// At this point k3s will have overwritten the /var/lib/minikube/kubeconfig file
+	// with its own version that includes the correct client certs.
+
+	// Since there is no way to make k3s use pre-generated client certs the new certs have
+	// to be copied back to the local machine to make that kubeconfig functional as well.
+
+	// copy [vm]/var/lib/k3s/server/tls/client-admin.* → [local]$MINIKUBE_HOME/profiles/$NAME/client.*
+	for _, ext := range []string{".crt", ".key"} {
+		src := path.Join(vmpath.GuestK3sServerCertsDir, "client-admin"+ext)
+		rr, err := k.c.RunCmd(exec.Command("sudo", "cat", src))
+		if err != nil {
+			klog.Infof("remote cat failed: %v", err)
+		}
+
+		perm := os.FileMode(0644)
+		if ext == ".key" {
+			perm = os.FileMode(0600)
+		}
+		dest := filepath.Join(localpath.Profile(cfg.Name), "client"+ext)
+		err = lock.WriteFile(dest, rr.Stdout.Bytes(), perm)
+		if err != nil {
+			return errors.Wrapf(err, "Error writing file %s", dest)
+		}
 	}
 	return nil
 }
@@ -100,6 +132,37 @@ func (k *Bootstrapper) DeleteCluster(k8s config.KubernetesConfig) error {
 
 // SetupCerts sets up certificates within the cluster.
 func (k *Bootstrapper) SetupCerts(k8s config.KubernetesConfig, n config.Node) error {
+	// The only reason this method implementation isn't empty is to make k3s use
+	// the shared minikube server CA. k3s will manage all certs on its own, but
+	// would create a separate server CA for each cluster (profile).
+
+	// TODO(jandubois): Don't generate client certs; k3s can't use them. Maybe not worth bothering though.
+	if _, err := bootstrapper.SetupCerts(k.c, k8s, n); err != nil {
+		return err
+	}
+
+	// Copy the cluster CA cert&key to the k3s certs directory, so it doesn't create its own.
+	if _, err := k.c.RunCmd(exec.Command("sudo", "mkdir", "-p", vmpath.GuestK3sServerCertsDir)); err != nil {
+		return errors.Wrap(err, "mkdir k3s tls dir")
+	}
+
+	// copy /var/lib/minikube/certs/ca.* → /var/lib/k3s/server/tls/server-ca.*
+	for _, ext := range []string{".crt", ".key"} {
+		src := path.Join(vmpath.GuestPersistentDir, "certs", "ca"+ext)
+		dest := path.Join(vmpath.GuestK3sServerCertsDir, "server-ca"+ext)
+		if _, err := k.c.RunCmd(exec.Command("sudo", "cp", src, dest)); err != nil {
+			return errors.Wrap(err, "copy server certs")
+		}
+	}
+
+	// k3s breaks when a pre-generated server CA cert is added to the system trust store:
+	// https://github.com/k3s-io/k3s/issues/2731
+	// TODO(jandubois): Wrap the workaround in a k8s version check once there is a fix
+	minikubeCA := path.Join(vmpath.GuestCertAuthDir, "minikubeCA.pem")
+	if _, err := k.c.RunCmd(exec.Command("sudo", "rm", minikubeCA)); err != nil {
+		return errors.Wrap(err, "remove minikubeCA")
+	}
+
 	return nil
 }
 
