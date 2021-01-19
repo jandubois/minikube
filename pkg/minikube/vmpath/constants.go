@@ -35,4 +35,6 @@ const (
 	GuestGvisorDir = "/tmp/gvisor"
 	// GuestK3sDataDir is where k3s stores all its data
 	GuestK3sDataDir = "/var/lib/k3s"
+	// GuestK3sServerCertsDir is where k3s server certificates are stored
+	GuestK3sServerCertsDir = GuestK3sDataDir + "/server/tls"
 )
