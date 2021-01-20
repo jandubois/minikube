@@ -321,6 +321,16 @@ func provisionWithDriver(cmd *cobra.Command, ds registry.DriverState, existing *
 		if existing != nil && existing.Addons != nil {
 			existingAddons = existing.Addons
 		}
+		// TODO(jandubois): Find a better place to put this!
+		if viper.GetString(cmdcfg.Bootstrapper) == bootstrapper.K3s {
+			// disable default storage addons unless they are explicitly configured; k3s provides its own
+			for _, addon := range []string{"default-storageclass", "storage-provisioner"} {
+				_, exist := existingAddons[addon]
+				if !exist {
+					existingAddons[addon] = false
+				}
+			}
+		}
 	}
 
 	if viper.GetBool(nativeSSH) {

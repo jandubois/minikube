@@ -414,7 +414,11 @@ func Start(wg *sync.WaitGroup, cc *config.ClusterConfig, toEnable map[string]boo
 
 	defer func() { // making it show after verifications (see #7613)
 		register.Reg.SetStep(register.EnablingAddons)
-		out.Step(style.AddonEnable, "Enabled addons: {{.addons}}", out.V{"addons": strings.Join(enabledAddons, ", ")})
+		addons := strings.Join(enabledAddons, ", ")
+		if addons == "" {
+			addons = "None"
+		}
+		out.Step(style.AddonEnable, "Enabled addons: {{.addons}}", out.V{"addons": addons})
 	}()
 	for _, a := range toEnableList {
 		awg.Add(1)
