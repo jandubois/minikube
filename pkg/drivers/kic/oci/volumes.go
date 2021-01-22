@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -91,6 +92,24 @@ func ExtractTarballToVolume(ociBin string, tarballPath, volumeName, imageName st
 		cmdArgs = append(cmdArgs, "--security-opt", "label=disable")
 	}
 	cmdArgs = append(cmdArgs, "-v", fmt.Sprintf("%s:/preloaded.tar:ro", tarballPath), "-v", fmt.Sprintf("%s:/extractDir", volumeName), imageName, "-I", "lz4", "-xf", "/preloaded.tar", "-C", "/extractDir")
+	cmd := exec.Command(ociBin, cmdArgs...)
+	if _, err := runCmd(cmd); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CopyFilesToVolume copies all files from a single host directory into the volume named volumeName.
+// Both localPath and vmPath must be absolute pathnames.
+func CopyFilesToVolume(ociBin string, localPath, vmPath, volumeName, imageName string, fileMode os.FileMode) error {
+	shellCmd := fmt.Sprintf("mkdir -p /vm%s && cp /local/* /vm%s", vmPath, vmPath)
+	if fileMode != 0 {
+		shellCmd += fmt.Sprintf(" && chmod %o /vm%s/*", fileMode, vmPath)
+	}
+	cmdArgs := []string{"run", "--rm", "--entrypoint", "/usr/bin/sh"}
+	cmdArgs = append(cmdArgs, "-v", fmt.Sprintf("%s:/local:ro", localPath))
+	cmdArgs = append(cmdArgs, "-v", fmt.Sprintf("%s:/vm", volumeName))
+	cmdArgs = append(cmdArgs, imageName, "-c", shellCmd)
 	cmd := exec.Command(ociBin, cmdArgs...)
 	if _, err := runCmd(cmd); err != nil {
 		return err

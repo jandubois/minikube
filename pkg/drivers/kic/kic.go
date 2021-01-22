@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
@@ -41,8 +42,10 @@ import (
 	"k8s.io/minikube/pkg/minikube/cruntime"
 	"k8s.io/minikube/pkg/minikube/download"
 	"k8s.io/minikube/pkg/minikube/driver"
+	"k8s.io/minikube/pkg/minikube/localpath"
 	"k8s.io/minikube/pkg/minikube/out"
 	"k8s.io/minikube/pkg/minikube/sysinit"
+	"k8s.io/minikube/pkg/minikube/vmpath"
 	"k8s.io/minikube/pkg/util/retry"
 )
 
@@ -172,6 +175,29 @@ func (d *Driver) Create() error {
 			klog.Infof("duration metric: took %f seconds to extract preloaded images to volume", time.Since(t).Seconds())
 		}
 	}()
+
+	// TODO(jandubois): Find a less hacky way to signal that binaries should be copied
+	if strings.Contains(d.NodeConfig.KubernetesVersion, "+k3s") {
+		waitForPreload.Add(1)
+		go func() {
+			defer waitForPreload.Done()
+			t := time.Now()
+			klog.Infof("Starting copying the cached binaries to volume ...")
+			localPath := localpath.MakeMiniPath("cache", "linux", d.NodeConfig.KubernetesVersion)
+			vmPath := path.Join(vmpath.GuestPersistentDir, "binaries", d.NodeConfig.KubernetesVersion)
+			// Remove volume mount point from vmPath.
+			vmPath = strings.TrimPrefix(vmPath, "/var")
+			if err := oci.CopyFilesToVolume(d.NodeConfig.OCIBinary, localPath, vmPath, params.Name, d.NodeConfig.ImageDigest, 0755); err != nil {
+				if strings.Contains(err.Error(), "No space left on device") {
+					pErr = oci.ErrInsufficientDockerStorage
+					return
+				}
+				klog.Infof("Unable to copy cached binaries to volume: %v", err)
+			} else {
+				klog.Infof("duration metric: took %f seconds to copy cached binaries to volume", time.Since(t).Seconds())
+			}
+		}()
+	}
 	if pErr == oci.ErrInsufficientDockerStorage {
 		return pErr
 	}
