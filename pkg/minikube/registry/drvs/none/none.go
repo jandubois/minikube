@@ -48,6 +48,7 @@ func configure(cc config.ClusterConfig, n config.Node) (interface{}, error) {
 		MachineName:      config.MachineName(cc, n),
 		StorePath:        localpath.MiniPath(),
 		ContainerRuntime: cc.KubernetesConfig.ContainerRuntime,
+		Bootstrapper:     cc.Bootstrapper,
 	}), nil
 }
 

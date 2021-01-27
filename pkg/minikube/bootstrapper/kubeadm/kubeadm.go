@@ -79,7 +79,7 @@ func NewBootstrapper(api libmachine.API, cc config.ClusterConfig, r command.Runn
 
 // GetAPIServerStatus returns the api-server status
 func (k *Bootstrapper) GetAPIServerStatus(hostname string, port int) (string, error) {
-	s, err := kverify.APIServerStatus(k.c, hostname, port)
+	s, err := kverify.APIServerStatus(k.c, bootstrapper.Kubeadm, hostname, port)
 	if err != nil {
 		return state.Error.String(), err
 	}
@@ -542,7 +542,7 @@ func (k *Bootstrapper) needsReconfigure(conf string, hostname string, port int, 
 		return true
 	}
 
-	st, err := kverify.APIServerStatus(k.c, hostname, port)
+	st, err := kverify.APIServerStatus(k.c, bootstrapper.Kubeadm, hostname, port)
 	if err != nil {
 		klog.Infof("needs reconfigure: apiserver error: %v", err)
 		return true

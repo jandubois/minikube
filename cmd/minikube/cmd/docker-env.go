@@ -175,11 +175,11 @@ func (EnvNoProxyGetter) GetNoProxyVar() (string, string) {
 }
 
 // ensureDockerd ensures dockerd inside minikube is running before a docker-env  command
-func ensureDockerd(name string, r command.Runner) {
+func ensureDockerd(name string, r command.Runner, bsName string) {
 	if ok := isDockerActive(r); ok {
 		return
 	}
-	mustRestartDockerd(name, r)
+	mustRestartDockerd(name, r, bsName)
 }
 
 // isDockerActive checks if Docker is active
@@ -188,7 +188,7 @@ func isDockerActive(r command.Runner) bool {
 }
 
 // mustRestartDockerd will attempt to reload dockerd if fails, will try restart and exit if fails again
-func mustRestartDockerd(name string, runner command.Runner) {
+func mustRestartDockerd(name string, runner command.Runner, bsName string) {
 	// Docker Docs: https://docs.docker.com/config/containers/live-restore
 	// On Linux, you can avoid a restart (and avoid any downtime for your containers) by reloading the Docker daemon.
 	klog.Warningf("dockerd is not active will try to reload it...")
@@ -203,13 +203,13 @@ func mustRestartDockerd(name string, runner command.Runner) {
 		// verifying apisever using kverify would add code complexity for a rare case.
 		klog.Warningf("waiting to ensure apisever container is up...")
 		startTime := time.Now()
-		if err = waitForAPIServerProcess(runner, startTime, time.Second*30); err != nil {
+		if err = waitForAPIServerProcess(runner, bsName, startTime, time.Second*30); err != nil {
 			klog.Warningf("apiserver container isn't up, error: %v", err)
 		}
 	}
 }
 
-func waitForAPIServerProcess(cr command.Runner, start time.Time, timeout time.Duration) error {
+func waitForAPIServerProcess(cr command.Runner, bsName string, start time.Time, timeout time.Duration) error {
 	klog.Infof("waiting for apiserver process to appear ...")
 	err := apiWait.PollImmediate(time.Millisecond*500, timeout, func() (bool, error) {
 		if time.Since(start) > timeout {
@@ -221,7 +221,7 @@ func waitForAPIServerProcess(cr command.Runner, start time.Time, timeout time.Du
 			time.Sleep(kconst.APICallRetryInterval * 5)
 		}
 
-		if _, ierr := kverify.APIServerPID(cr); ierr != nil {
+		if _, ierr := kverify.APIServerPID(cr, bsName); ierr != nil {
 			return false, nil
 		}
 
@@ -278,7 +278,7 @@ var dockerEnvCmd = &cobra.Command{
 		}
 
 		r := co.CP.Runner
-		ensureDockerd(cname, r)
+		ensureDockerd(cname, r, co.Config.Bootstrapper)
 
 		d := co.CP.Host.Driver
 		port := constants.DockerDaemonPort
@@ -327,7 +327,7 @@ var dockerEnvCmd = &cobra.Command{
 				// to fix issues like this #8185
 				// even though docker maybe running just fine it could be holding on to old certs and needs a refresh
 				klog.Warningf("couldn't connect to docker inside minikube.  output: %s error: %v", string(out), err)
-				mustRestartDockerd(cname, co.CP.Runner)
+				mustRestartDockerd(cname, co.CP.Runner, co.Config.Bootstrapper)
 			}
 		}
 

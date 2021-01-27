@@ -50,6 +50,7 @@ type Driver struct {
 	URL     string
 	runtime cruntime.Manager
 	exec    command.Runner
+	bsName  string
 }
 
 // Config is configuration for the None driver
@@ -57,6 +58,7 @@ type Config struct {
 	MachineName      string
 	StorePath        string
 	ContainerRuntime string
+	Bootstrapper     string
 }
 
 // NewDriver returns a fully configured None driver
@@ -74,6 +76,7 @@ func NewDriver(c Config) *Driver {
 		},
 		runtime: runtime,
 		exec:    runner,
+		bsName:  c.Bootstrapper,
 	}
 }
 
@@ -132,7 +135,7 @@ func (d *Driver) GetState() (state.State, error) {
 	}
 
 	// Confusing logic, as libmachine.Stop will loop until the state == Stopped
-	ast, err := kverify.APIServerStatus(d.exec, hostname, port)
+	ast, err := kverify.APIServerStatus(d.exec, d.bsName, hostname, port)
 	if err != nil {
 		return ast, err
 	}

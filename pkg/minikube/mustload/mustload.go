@@ -144,7 +144,7 @@ func Running(name string) ClusterController {
 func Healthy(name string) ClusterController {
 	co := Running(name)
 
-	as, err := kverify.APIServerStatus(co.CP.Runner, co.CP.Hostname, co.CP.Port)
+	as, err := kverify.APIServerStatus(co.CP.Runner, co.Config.Bootstrapper, co.CP.Hostname, co.CP.Port)
 	if err != nil {
 		out.FailureT(`Unable to get control plane status: {{.error}}`, out.V{"error": err})
 		exitTip("delete", name, reason.ExSvcError)

@@ -120,7 +120,7 @@ func profileStatus(p *config.Profile, api libmachine.API) string {
 		return "Unknown"
 	}
 
-	status, err := kverify.APIServerStatus(cr, hostname, port)
+	status, err := kverify.APIServerStatus(cr, p.Config.Bootstrapper, hostname, port)
 	if err != nil {
 		klog.Warningf("error getting apiserver status for %s: %v", p.Name, err)
 		return "Unknown"

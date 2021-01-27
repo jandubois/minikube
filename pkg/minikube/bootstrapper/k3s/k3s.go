@@ -56,7 +56,7 @@ func NewBootstrapper(api libmachine.API, cc config.ClusterConfig, r command.Runn
 
 // GetAPIServerStatus returns the api-server status
 func (k *Bootstrapper) GetAPIServerStatus(hostname string, port int) (string, error) {
-	s, err := kverify.APIServerStatus(k.c, hostname, port)
+	s, err := kverify.APIServerStatus(k.c, bootstrapper.K3s, hostname, port)
 	if err != nil {
 		return state.Error.String(), err
 	}

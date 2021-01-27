@@ -392,7 +392,7 @@ func nodeStatus(api libmachine.API, cc config.ClusterConfig, n config.Node) (*St
 		}
 	}
 
-	sta, err := kverify.APIServerStatus(cr, hostname, port)
+	sta, err := kverify.APIServerStatus(cr, cc.Bootstrapper, hostname, port)
 	klog.Infof("%s apiserver status = %s (err=%v)", name, stk, err)
 
 	if err != nil {
