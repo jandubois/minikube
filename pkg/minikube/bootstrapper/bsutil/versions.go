@@ -44,6 +44,8 @@ var versionSpecificOpts = []config.VersionedExtraOption{
 	config.NewUnversionedOption(K3s, "data-dir", vmpath.GuestK3sDataDir),
 	config.NewUnversionedOption(K3s, "https-listen-port", strconv.Itoa(constants.APIServerPort)),
 	config.NewUnversionedOption(K3s, "write-kubeconfig", path.Join(vmpath.GuestPersistentDir, "kubeconfig")),
+	// TODO(jandubois): use auth when checking the apiserver port
+	config.NewUnversionedOption(K3s, "kube-apiserver-arg", "anonymous-auth=true"),
 
 	config.NewUnversionedOption(Kubelet, "bootstrap-kubeconfig", "/etc/kubernetes/bootstrap-kubelet.conf"),
 	config.NewUnversionedOption(Kubelet, "config", "/var/lib/kubelet/config.yaml"),
