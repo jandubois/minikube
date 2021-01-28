@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -27,6 +28,7 @@ import (
 	"os/user"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/blang/semver"
@@ -34,6 +36,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 	"github.com/shirou/gopsutil/v3/cpu"
 	gopshost "github.com/shirou/gopsutil/v3/host"
@@ -76,6 +79,7 @@ var (
 	apiServerNames   []string
 	apiServerIPs     []net.IP
 	hostRe           = regexp.MustCompile(`[\w\.-]+`)
+	k3sReleases      []*github.RepositoryRelease
 )
 
 func init() {
@@ -1306,6 +1310,24 @@ func isBaseImageApplicable(drv string) bool {
 	return registry.IsKIC(drv)
 }
 
+func downloadK3sReleases() error {
+	if len(k3sReleases) == 0 {
+		repoClient := github.NewClient(nil).Repositories
+		opt := &github.ListOptions{PerPage: 100}
+		for {
+			releases, response, err := repoClient.ListReleases(context.Background(), "k3s-io", "k3s", opt)
+			if err != nil {
+				return err
+			}
+			k3sReleases = append(k3sReleases, releases...)
+			if response.NextPage == 0 {
+				break
+			}
+			opt.Page = response.NextPage
+		}
+	}
+	return nil
+}
 func getKubernetesVersion(old *config.ClusterConfig) string {
 	paramVersion := viper.GetString(kubernetesVersion)
 
@@ -1325,6 +1347,27 @@ func getKubernetesVersion(old *config.ClusterConfig) string {
 		exit.Message(reason.Usage, `Unable to parse "{{.kubernetes_version}}": {{.error}}`, out.V{"kubernetes_version": paramVersion, "error": err})
 	}
 
+	// TODO(jandubois): Find a better place to put this!
+	if viper.GetString(cmdcfg.Bootstrapper) == bootstrapper.K3s && len(nvs.Build) == 0 {
+		// TODO(jandubois): error handling; e.g. look at available cached versions when offline
+		// Also fetching github releases may get slow; it may be faster to do a HEAD request
+		// on successive versions until we get a 404; most of the time there is just k3s1,
+		// and there have never been more than 3 release builds per k8s version so far.
+		_ = downloadK3sReleases()
+		highestBuild := 0
+		prefix := version.VersionPrefix + nvs.String() + "+k3s"
+		for _, release := range k3sReleases {
+			if strings.HasPrefix(*release.TagName, prefix) {
+				k3sBuild, err := strconv.Atoi(strings.TrimPrefix(*release.TagName, prefix))
+				if err == nil && k3sBuild > highestBuild {
+					highestBuild = k3sBuild
+				}
+			}
+		}
+		if highestBuild > 0 {
+			nvs.Build = append(nvs.Build, fmt.Sprintf("k3s%d", highestBuild))
+		}
+	}
 	return version.VersionPrefix + nvs.String()
 }
 
