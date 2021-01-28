@@ -288,12 +288,21 @@ func (k *Bootstrapper) SetupCerts(k8s config.KubernetesConfig, n config.Node) er
 
 // UpdateCluster updates the control plane with cluster-level info.
 func (k *Bootstrapper) UpdateCluster(cfg config.ClusterConfig) error {
+	r, err := cruntime.New(cruntime.Config{
+		Type:   cfg.KubernetesConfig.ContainerRuntime,
+		Runner: k.c,
+		Socket: cfg.KubernetesConfig.CRISocket,
+	})
+	if err != nil {
+		return errors.Wrap(err, "runtime")
+	}
+
 	cp, err := config.PrimaryControlPlane(&cfg)
 	if err != nil {
 		return errors.Wrap(err, "getting control plane")
 	}
 
-	err = k.UpdateNode(cfg, cp, nil)
+	err = k.UpdateNode(cfg, cp, r)
 	if err != nil {
 		return errors.Wrap(err, "updating control plane")
 	}
@@ -328,7 +337,7 @@ func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cru
 		return errors.Wrapf(err, "create symlink failed: %s", rr.Command())
 	}
 
-	k3sCfg, err := bsutil.NewK3sConfig(cfg, n)
+	k3sCfg, err := bsutil.NewK3sConfig(cfg, n, r)
 	if err != nil {
 		return errors.Wrap(err, "generating k3s config")
 	}

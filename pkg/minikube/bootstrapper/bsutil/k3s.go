@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil/ktmpl"
 	"k8s.io/minikube/pkg/minikube/config"
+	"k8s.io/minikube/pkg/minikube/cruntime"
 	"k8s.io/minikube/pkg/util"
 )
 
@@ -47,13 +48,22 @@ func extraK3sOpts(mc config.ClusterConfig) (map[string]string, error) {
 
 // NewK3sConfig generates a new systemd unit containing a configured k3s service
 // based on the options present in the KubernetesConfig.
-func NewK3sConfig(mc config.ClusterConfig, nc config.Node) ([]byte, error) {
+func NewK3sConfig(mc config.ClusterConfig, nc config.Node, r cruntime.Manager) ([]byte, error) {
 	b := bytes.Buffer{}
 	// nc not yet used
 	extraOpts, err := extraK3sOpts(mc)
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO(jandubois): Is there a better way to check the runtime type?
+	if r.Name() == "Docker" {
+		extraOpts["docker"] = "true"
+		extraOpts["kubelet-arg"] = "cgroup-driver=systemd"
+	} else {
+		extraOpts["container-runtime-endpoint"] = r.SocketPath()
+	}
+
 	k8s := mc.KubernetesConfig
 	opts := struct {
 		ExtraOptions string
