@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
+	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/constants"
 	"k8s.io/minikube/pkg/minikube/download"
 )
@@ -40,15 +41,24 @@ var (
 	dockerStorageDriver = "overlay2"
 	podmanStorageDriver = "overlay"
 	containerRuntimes   = []string{"docker", "containerd", "cri-o"}
+	containerRuntime    string
 	k8sVersion          string
 	k8sVersions         []string
+	upload              bool
+	bsName              string
 )
 
 func init() {
 	flag.StringVar(&k8sVersion, "kubernetes-version", "", "desired Kubernetes version, for example `v1.17.2`")
+	flag.StringVar(&containerRuntime, "container-runtime", "", "desired container runtime, for example `containerd`")
+	flag.StringVar(&bsName, "bootstrapper", bootstrapper.Kubeadm, "bootstrapper name (default: kubeadm)")
+	flag.BoolVar(&upload, "upload", true, "upload generated preload tarballs (default: true)")
 	flag.Parse()
 	if k8sVersion != "" {
 		k8sVersions = append(k8sVersions, k8sVersion)
+	}
+	if containerRuntime != "" {
+		containerRuntimes = []string{containerRuntime}
 	}
 	viper.Set("preload", "true")
 }
@@ -70,9 +80,8 @@ func main() {
 		if err != nil {
 			exit("Unable to get recent k8s versions: %v\n", err)
 		}
+		k8sVersions = append(k8sVersions, constants.DefaultKubernetesVersion, constants.NewestKubernetesVersion, constants.OldestKubernetesVersion)
 	}
-
-	k8sVersions = append(k8sVersions, constants.DefaultKubernetesVersion, constants.NewestKubernetesVersion, constants.OldestKubernetesVersion)
 
 	for _, kv := range k8sVersions {
 		for _, cr := range containerRuntimes {
@@ -82,11 +91,13 @@ func main() {
 				continue
 			}
 			fmt.Printf("A preloaded tarball for k8s version %s - runtime %q doesn't exist, generating now...\n", kv, cr)
-			if err := generateTarball(kv, cr, tf); err != nil {
+			if err := generateTarball(kv, cr, bsName, tf); err != nil {
 				exit(fmt.Sprintf("generating tarball for k8s version %s with %s", kv, cr), err)
 			}
-			if err := uploadTarball(tf); err != nil {
-				exit(fmt.Sprintf("uploading tarball for k8s version %s with %s", kv, cr), err)
+			if upload {
+				if err := uploadTarball(tf); err != nil {
+					exit(fmt.Sprintf("uploading tarball for k8s version %s with %s", kv, cr), err)
+				}
 			}
 
 			if err := deleteMinikube(); err != nil {

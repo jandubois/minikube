@@ -636,9 +636,11 @@ ifndef AUTOPUSH
 endif
 	env $(X_BUILD_ENV) docker buildx build --platform $(KICBASE_ARCH) $(addprefix -t ,$(KICBASE_IMAGE_REGISTRIES)) --push  --build-arg COMMIT_SHA=${VERSION}-$(COMMIT) ./deploy/kicbase
 
-.PHONY: upload-preloaded-images-tar
-upload-preloaded-images-tar: out/minikube # Upload the preloaded images for oldest supported, newest supported, and default kubernetes versions to GCS.
+out/upload-preload: ./hack/preload-images/*.go
 	go build -ldflags="$(MINIKUBE_LDFLAGS)" -o out/upload-preload ./hack/preload-images/*.go
+
+.PHONY: upload-preloaded-images-tar
+upload-preloaded-images-tar: out/minikube out/upload-preload # Upload the preloaded images for oldest supported, newest supported, and default kubernetes versions to GCS.
 	./out/upload-preload
 
 .PHONY: push-storage-provisioner-image

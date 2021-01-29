@@ -26,7 +26,6 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/minikube/pkg/drivers/kic"
 	"k8s.io/minikube/pkg/drivers/kic/oci"
-	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/images"
 	"k8s.io/minikube/pkg/minikube/command"
@@ -38,7 +37,7 @@ import (
 	"k8s.io/minikube/pkg/util/retry"
 )
 
-func generateTarball(kubernetesVersion, containerRuntime, tarballFilename string) error {
+func generateTarball(kubernetesVersion, containerRuntime, bsName, tarballFilename string) error {
 	driver := kic.NewDriver(kic.Config{
 		ClusterName:       profile,
 		KubernetesVersion: kubernetesVersion,
@@ -123,7 +122,7 @@ func generateTarball(kubernetesVersion, containerRuntime, tarballFilename string
 
 	sm := sysinit.New(runner)
 
-	if err := bsutil.TransferBinaries(kcfg, bootstrapper.Kubeadm, runner, sm); err != nil {
+	if err := bsutil.TransferBinaries(kcfg, bsName, runner, sm); err != nil {
 		return errors.Wrap(err, "transferring k8s binaries")
 	}
 	// Create image tarball
