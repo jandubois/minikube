@@ -57,6 +57,10 @@ func init() {
 	if k8sVersion != "" {
 		k8sVersions = append(k8sVersions, k8sVersion)
 	}
+	// K3s does not (yet) support cri-o
+	if bsName == bootstrapper.K3s {
+		containerRuntimes = []string{"docker", "containerd"}
+	}
 	if containerRuntime != "" {
 		containerRuntimes = []string{containerRuntime}
 	}

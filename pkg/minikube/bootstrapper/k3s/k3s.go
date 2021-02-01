@@ -46,6 +46,7 @@ import (
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil/kverify"
 	"k8s.io/minikube/pkg/minikube/command"
 	"k8s.io/minikube/pkg/minikube/config"
+	"k8s.io/minikube/pkg/minikube/constants"
 	"k8s.io/minikube/pkg/minikube/cruntime"
 	"k8s.io/minikube/pkg/minikube/localpath"
 	"k8s.io/minikube/pkg/minikube/sysinit"
@@ -310,6 +311,18 @@ func (k *Bootstrapper) UpdateCluster(cfg config.ClusterConfig) error {
 	return nil
 }
 
+// TODO(jandubois): Move this to a shared location somewhere in bsutils
+// CreateSymlink creates a symlink (if the destination doesn't already exist)
+func CreateSymlink(r command.Runner, source string, dest string) error {
+	// TODO(jandubois): should we use https://github.com/alessio/shellescape to quote source/dest?
+	shellCmd := fmt.Sprintf("test -e %s || ln -s %s %s", dest, source, dest)
+	c := exec.Command("sudo", "/bin/sh", "-c", shellCmd)
+	if rr, err := r.RunCmd(c); err != nil {
+		return errors.Wrapf(err, "create symlink failed: %s", rr.Command())
+	}
+	return nil
+}
+
 // UpdateNode updates a node.
 func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cruntime.Manager) error {
 	sm := sysinit.New(k.c)
@@ -321,9 +334,8 @@ func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cru
 	// Create kubectl symlink to k3s
 	binPath := path.Join(vmpath.GuestPersistentDir, "binaries", cfg.KubernetesConfig.KubernetesVersion)
 	k3sPath := path.Join(binPath, "k3s")
-	c := exec.Command("sudo", "ln", "-s", k3sPath, kubectlPath(cfg))
-	if rr, err := k.c.RunCmd(c); err != nil {
-		return errors.Wrapf(err, "create symlink failed: %s", rr.Command())
+	if err := CreateSymlink(k.c, k3sPath, kubectlPath(cfg)); err != nil {
+		return err
 	}
 
 	// Create symlink for tarball of preload images
@@ -332,9 +344,8 @@ func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cru
 	}
 
 	preloadPath := path.Join(vmpath.GuestK3sImagesDir, "preload.tar")
-	c = exec.Command("sudo", "ln", "-s", path.Join(binPath, "k3s-airgap-images"), preloadPath)
-	if rr, err := k.c.RunCmd(c); err != nil {
-		return errors.Wrapf(err, "create symlink failed: %s", rr.Command())
+	if err := CreateSymlink(k.c, path.Join(binPath, constants.K3sImagesTarball), preloadPath); err != nil {
+		return err
 	}
 
 	k3sCfg, err := bsutil.NewK3sConfig(cfg, n, r)

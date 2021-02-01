@@ -139,8 +139,10 @@ var (
 	// KubernetesReleaseBinaries are Kubernetes release binaries required for
 	// kubeadm (kubelet, kubeadm) and the addon manager (kubectl)
 	KubernetesReleaseBinaries = []string{"kubelet", "kubeadm", "kubectl"}
-	// K3sReleaseBinaries are the k3s binary and the airgap images tarball
-	K3sReleaseBinaries = []string{"k3s", "k3s-airgap-images"}
+	// K3sImagesTarball is the name of the k3s airgap images tarball
+	K3sImagesTarball = "k3s-airgap-images"
+	// K3sReleaseBinaries are the k3s binary and the images tarball
+	K3sReleaseBinaries = []string{"k3s", K3sImagesTarball}
 	// ImageCacheDir is the path to the image cache directory
 	ImageCacheDir = localpath.MakeMiniPath("cache", "images")
 

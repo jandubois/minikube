@@ -20,19 +20,23 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"time"
 
 	"github.com/pkg/errors"
 	"k8s.io/minikube/pkg/drivers/kic"
 	"k8s.io/minikube/pkg/drivers/kic/oci"
+	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/images"
 	"k8s.io/minikube/pkg/minikube/command"
 	"k8s.io/minikube/pkg/minikube/config"
+	"k8s.io/minikube/pkg/minikube/constants"
 	"k8s.io/minikube/pkg/minikube/cruntime"
 	"k8s.io/minikube/pkg/minikube/localpath"
 	"k8s.io/minikube/pkg/minikube/sysinit"
+	"k8s.io/minikube/pkg/minikube/vmpath"
 	"k8s.io/minikube/pkg/util"
 	"k8s.io/minikube/pkg/util/retry"
 )
@@ -66,15 +70,18 @@ func generateTarball(kubernetesVersion, containerRuntime, bsName, tarballFilenam
 	}
 
 	// Now, get images to pull
-	imgs, err := images.Kubeadm("", kubernetesVersion)
-	if err != nil {
-		return errors.Wrap(err, "kubeadm images")
+	var imgs []string
+	if bsName == bootstrapper.Kubeadm {
+		var err error
+		imgs, err = images.Kubeadm("", kubernetesVersion)
+		if err != nil {
+			return errors.Wrap(err, "kubeadm images")
+		}
+		// TODO(jandubois): Is this needed for k3s?
+		if containerRuntime != "docker" { // kic overlay image is only needed by containerd and cri-o https://github.com/kubernetes/minikube/issues/7428
+			imgs = append(imgs, images.KindNet(""))
+		}
 	}
-
-	if containerRuntime != "docker" { // kic overlay image is only needed by containerd and cri-o https://github.com/kubernetes/minikube/issues/7428
-		imgs = append(imgs, images.KindNet(""))
-	}
-
 	runner := command.NewKICRunner(profile, driver.OCIBinary)
 
 	// will need to do this to enable the container run-time service
@@ -125,6 +132,13 @@ func generateTarball(kubernetesVersion, containerRuntime, bsName, tarballFilenam
 	if err := bsutil.TransferBinaries(kcfg, bsName, runner, sm); err != nil {
 		return errors.Wrap(err, "transferring k8s binaries")
 	}
+
+	if bsName == bootstrapper.K3s {
+		if err := importK3sImages(kubernetesVersion); err != nil {
+			return err
+		}
+	}
+
 	// Create image tarball
 	if err := createImageTarball(tarballFilename, containerRuntime); err != nil {
 		return errors.Wrap(err, "create tarball")
@@ -159,6 +173,33 @@ func imagePullCommand(containerRuntime, img string) *exec.Cmd {
 
 	if containerRuntime == "cri-o" {
 		return exec.Command("docker", "exec", profile, "sudo", "crictl", "pull", img)
+	}
+	return nil
+}
+
+func importK3sImages(kubernetesVersion string) error {
+	tarball := path.Join(vmpath.GuestPersistentDir, "binaries", kubernetesVersion, constants.K3sImagesTarball)
+
+	var cmd = &exec.Cmd{}
+	if containerRuntime == "docker" {
+		cmd = exec.Command("docker", "exec", profile, "docker", "load", "--input", tarball)
+	}
+	if containerRuntime == "containerd" {
+		// TODO(jandubois): Does "--no-unpack" slow down startup?
+		cmd = exec.Command("docker", "exec", profile, "ctr", "-n", "k8s.io", "images", "import", "--no-unpack", tarball)
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return errors.Wrapf(err, "loading images from %s", tarball)
+	}
+
+	// tarball content is no longer needed, but directory entry must still exist
+	cmd = exec.Command("docker", "exec", profile, "truncate", "--size", "0", tarball)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return errors.Wrapf(err, "truncating %s to size 0", tarball)
 	}
 	return nil
 }

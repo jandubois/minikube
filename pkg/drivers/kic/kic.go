@@ -181,6 +181,10 @@ func (d *Driver) Create() error {
 		waitForPreload.Add(1)
 		go func() {
 			defer waitForPreload.Done()
+			// If preload exists, don't bother copying cached binaries to volume
+			if download.PreloadExists(d.NodeConfig.KubernetesVersion, d.NodeConfig.ContainerRuntime) {
+				return
+			}
 			t := time.Now()
 			klog.Infof("Starting copying the cached binaries to volume ...")
 			localPath := localpath.MakeMiniPath("cache", "linux", d.NodeConfig.KubernetesVersion)
