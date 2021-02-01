@@ -18,6 +18,7 @@ package bsutil
 
 import (
 	"bytes"
+	"fmt"
 	"path"
 
 	"github.com/pkg/errors"
@@ -58,8 +59,12 @@ func NewK3sConfig(mc config.ClusterConfig, nc config.Node, r cruntime.Manager) (
 
 	// TODO(jandubois): Is there a better way to check the runtime type?
 	if r.Name() == "Docker" {
+		cgroupDriver, err := r.CGroupDriver()
+		if err != nil {
+			return nil, errors.Wrap(err, "getting cgroup driver")
+		}
 		extraOpts["docker"] = "true"
-		extraOpts["kubelet-arg"] = "cgroup-driver=systemd"
+		extraOpts["kubelet-arg"] = fmt.Sprintf("cgroup-driver=%s", cgroupDriver)
 	} else {
 		extraOpts["container-runtime-endpoint"] = r.SocketPath()
 	}
