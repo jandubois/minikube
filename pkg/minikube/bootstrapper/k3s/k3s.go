@@ -88,8 +88,9 @@ func (k *Bootstrapper) StartCluster(cfg config.ClusterConfig) error {
 		klog.Infof("StartCluster complete in %s", time.Since(start))
 	}()
 
-	if err := sysinit.New(k.c).Restart("k3s"); err != nil {
-		klog.Warningf("Failed to restart k3s: %v", err)
+	// Note the the "k3s" service is called "kubelet" inside minikube.
+	if err := sysinit.New(k.c).Restart("kubelet"); err != nil {
+		klog.Warningf("Failed to restart kubelet (k3s): %v", err)
 		// TODO(jandubois): Why don't we return an error (the kubeadm bootstrapper doesn't either)?
 	}
 	// Once "systemctl start k3s" returns with a 0 exit code the apiserver is functional
@@ -152,7 +153,7 @@ func (k *Bootstrapper) WaitForNode(cfg config.ClusterConfig, n config.Node, time
 	out.Step(style.HealthCheck, "Verifying Kubernetes components...")
 	// regardless if waiting is set or not, we will make sure kubelet is not stopped
 	// to solve corner cases when a container is hibernated and once coming back kubelet not running.
-	if err := k.ensureServiceStarted("k3s"); err != nil {
+	if err := k.ensureServiceStarted("kubelet"); err != nil {
 		klog.Warningf("Couldn't ensure kubelet is started this might cause issues: %v", err)
 	}
 	// TODO: #7706: for better performance we could use k.client inside minikube to avoid asking for external IP:PORT
@@ -356,11 +357,11 @@ func (k *Bootstrapper) UpdateNode(cfg config.ClusterConfig, n config.Node, r cru
 	klog.Infof("k3s %s config:\n%+v", k3sCfg, cfg.KubernetesConfig)
 
 	files := []assets.CopyableFile{
-		assets.NewMemoryAssetTarget(k3sCfg, bsutil.K3sSystemdConfFile, "0644"),
+		assets.NewMemoryAssetTarget(k3sCfg, bsutil.KubeletServiceFile, "0644"),
 	}
 
 	// Installs compatibility shims for non-systemd environments
-	shims, err := sm.GenerateInitShim("k3s", k3sPath, bsutil.K3sSystemdConfFile)
+	shims, err := sm.GenerateInitShim("kubelet", k3sPath, bsutil.KubeletServiceFile)
 	if err != nil {
 		return errors.Wrap(err, "shim")
 	}

@@ -23,7 +23,6 @@ import (
 	"path"
 
 	"github.com/pkg/errors"
-	"k8s.io/minikube/pkg/minikube/bootstrapper"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/bsutil/ktmpl"
 	"k8s.io/minikube/pkg/minikube/bootstrapper/images"
 	"k8s.io/minikube/pkg/minikube/cni"
@@ -125,12 +124,4 @@ func KubeNodeName(cc config.ClusterConfig, n config.Node) string {
 		return hostname
 	}
 	return config.MachineName(cc, n)
-}
-
-// KubeletServiceName returns the name of the kubelet service
-func KubeletServiceName(bsName string) string {
-	if bsName == bootstrapper.K3s {
-		return "k3s"
-	}
-	return "kubelet"
 }

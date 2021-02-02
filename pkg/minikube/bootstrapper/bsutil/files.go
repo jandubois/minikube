@@ -31,12 +31,12 @@ import (
 var KubeadmYamlPath = path.Join(vmpath.GuestEphemeralDir, "kubeadm.yaml")
 
 const (
-	// KubeletServiceFile is the file for the systemd kubelet.service
+	// KubeletServiceFile is the file for the systemd kubelet.service.
+	// It will also be used for the k3s service (which includes kubelet),
+	// so the service name doesn't need to be parameterized everywhere.
 	KubeletServiceFile = "/lib/systemd/system/kubelet.service"
 	// KubeletSystemdConfFile is config for the systemd kubelet.service
 	KubeletSystemdConfFile = "/etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
-	// K3sSystemdConfFile is config for the systemd k3s.service
-	K3sSystemdConfFile = "/etc/systemd/system/k3s.service"
 	// InitRestartWrapper is ...
 	InitRestartWrapper = "/etc/init.d/.restart_wrapper.sh"
 	// KubeletInitPath is where Sys-V style init script is installed
