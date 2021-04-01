@@ -66,7 +66,7 @@ func NewK3sConfig(mc config.ClusterConfig, nc config.Node, r cruntime.Manager) (
 		extraOpts["docker"] = "true"
 		extraOpts["kubelet-arg"] = fmt.Sprintf("cgroup-driver=%s", cgroupDriver)
 	} else {
-		extraOpts["container-runtime-endpoint"] = r.SocketPath()
+		// extraOpts["container-runtime-endpoint"] = r.SocketPath()
 	}
 
 	k8s := mc.KubernetesConfig

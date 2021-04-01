@@ -34,7 +34,7 @@ const (
 	// GuestGvisorDir is where gvisor bootstraps from
 	GuestGvisorDir = "/tmp/gvisor"
 	// GuestK3sDataDir is where k3s stores all its data
-	GuestK3sDataDir = "/var/lib/k3s"
+	GuestK3sDataDir = "/var/lib/rancher/k3s"
 	// GuestK3sServerCertsDir is where k3s server certificates are stored
 	GuestK3sServerCertsDir = GuestK3sDataDir + "/server/tls"
 	// GuestK3sImagesDir is where k3s preload image tarballs are stored
