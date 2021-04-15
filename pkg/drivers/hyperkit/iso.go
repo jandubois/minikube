@@ -26,7 +26,7 @@ import (
 	"github.com/hooklift/iso9660"
 )
 
-var kernelRegexp = regexp.MustCompile(`(vmlinu[xz]|bzImage)[\d]*`)
+var kernelRegexp = regexp.MustCompile(`(vmlinu[xz]|bz[iI]mage)[\d]*`)
 
 type ISOBootFiles struct {
 	InitrdPath      string
